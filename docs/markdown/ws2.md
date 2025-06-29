@@ -33,11 +33,32 @@ We assume that you know the general structure of the PES board, if not, please v
 
 The first task will be the integration of two servo motors and the corresponding calibration process.
 
-1. Refer to the Servo manual for a step-by-step hardware tutorial on the usage of a servo motor and on the calibration process. There you can find also information on how to connect the servos to the PES board. Follow the instructions outlined in the hardware tutorial to complete the calibration.
-
-    > [Servo Tutorial](../markdown/servo.md)
+Refer to the Servo manual for a step-by-step hardware tutorial on the usage of a servo motor and on the calibration process. There you can find also information on how to connect the servos to the PES board. Follow the instructions outlined in the hardware tutorial to complete the calibration: [Tutorial Servo](servo.md)
 
 ## Part 2
+
+### No Ultrasonic Sensor?
+
+Replace the ultrasonic sensor with an infrared (IR) distance sensor. The IR sensor can be used in a similar way, but you will need to adapt the code accordingly. You can find the IR sensor tutorial here: [Tutorial Infrared Distance Sensor](ir_sensor.md). Since you already have the calibration values from the first workshop, you can use them directly in your code. It is recommended to use the ``IRSensor`` class, which applies an averaging filter and automatically uses the calibration values.
+
+To create and use the ``IRSensor`` class, you can use the following code snippet:
+
+```cpp
+#include "IRSensor.h"
+
+...
+
+// ir distance sensor instead of ultra sonic sensor
+IRSensor ir_sensor(PB_A0);
+ir_sensor.setCalibration(11801.3246f, -11.2132f); // set calibration values
+
+...
+
+// ir distance sensor instead of ultra sonic sensor
+us_distance_cm = ir_sensor.read();
+```
+
+### Ultrasonic Sensor
 
 The second task will be to design and implement a state machine (this is nothing else than a switch-case statement as a logic part). Here we will use an additional ultrasonic sensor. A state machine with the following states will be used:
 
@@ -48,7 +69,7 @@ The second task will be to design and implement a state machine (this is nothing
 
 The overall goal is to build a mechatronic system capable of adjusting the deflection of the servo based on the distance measured by the ultrasonic sensor. The system will enter a sleep state if readings are not within a specified range, and pressing the mechanical button will trigger an emergency state/stop which will reset the system.
 
-Before beginning the task you should familiarize yourself with the part [Structuring a Robot Task Tutorial](../markdown/tips.md#structuring-a-robot-task).
+Before beginning the task you should familiarize yourself with the part [Tutorial Structuring a Robot Task](tips.md#structuring-a-robot-task).
 
 Below you can find a flow chart diagram showing the logic of the transitions for each state.
 
@@ -74,7 +95,7 @@ mechanical_button.mode(PullUp);    // sets pullup between pin and 3.3 V, so that
 ```
 
 3. Read the ultrasonic sensor manual and create an object in the ``main()`` function
-    >[Ultrasonic Sensor Manual](../markdown/ultrasonic_sensor.md)
+    >[Ultrasonic Sensor Manual](ultrasonic_sensor.md)
 4. Make sure that you add a reading command and a statement to handle non-valid measurement. This should be placed inside the ``while()`` loop in the scope of the ``if()`` statement, so that it is executed after clicking the **USER** button:
 
 ```cpp
@@ -84,7 +105,7 @@ if (us_distance_cm_candidate > 0.0f)
     us_distance_cm = us_distance_cm_candidate;
 ```
 
-5. At the top of ``main()`` function create the ``robot_state`` enum object:
+5. At the start of the ``main()`` function create the ``robot_state`` enum object:
 
 ```cpp
 // set up states for state machine
@@ -242,25 +263,6 @@ printf("US distance cm: %f \n", us_distance_cm);
 
 15. Experiment by directing the sensor towards an object that is out of range. Press the mechanical button and observe the serial terminal to see the current state and the measured distance (if valid and within the specified range).
 
-
-## No Ultrasonic Sensor?
-
-Replace the ultrasonic sensor with an infrared (IR) distance sensor. The IR sensor can be used in a similar way, but you will need to adapt the code accordingly. You can find the IR sensor tutorial here: [IR Sensor Tutorial](../markdown/ir_sensor.md). Since you already have the calibration values from the first workshop, you can use them directly in your code. It is recommended to use the ``IRSensor`` class, which applies an averaging filter and automatically uses the calibration values.
-
-To create and use the ``IRSensor`` class, you can use the following code snippet:
-
-```cpp
-#include "IRSensor.h"
-...
-// ir distance sensor instead of ultra sonic sensor
-IRSensor ir_sensor(PB_A0);
-float ir_distance_cm = 0.0f;
-ir_sensor.setCalibration(11801.3246f, -11.2132f);
-...
-// ir distance sensor instead of ultra sonic sensor
-us_distance_cm = ir_sensor.read();
-```
-
 ## Summary
 
 In the second workshop, the integration of a servo motor along with the PES board, servo calibration, and a mechanical button incorporation were performed. Additionally, the creation of a state machine, using an ultrasonic sensor, was explored. By establishing robot states and implementing transition conditions, a primitive mechatronic system capable of adjusting a servo motor based on ultrasonic sensor readings was implemented.
@@ -272,9 +274,9 @@ In the second workshop, the integration of a servo motor along with the PES boar
 
 ## Solutions
 
-- [Workshop 2, Part 1](../solutions/main_ws2_p1.cpp)
-- [Workshop 2, Part 2](../solutions/main_ws2_p2.cpp)
-- [Workshop 2 with IRSensor class instead of Ultrasonic Sensor](../solutions/main_ws2_p2_ir_sensor.cpp)
+- [Workshop 2 Part 1 Solution: Example Servo](../solutions/main_servo.cpp)
+- [Workshop 2 Part 2 Solution](../solutions/main_ws2_p2.cpp)
+- [Workshop 2 Part 2 Solution with IRSensor class instead of Ultrasonic Sensor](../solutions/main_ws2_p2_ir_sensor.cpp)
 
 <p align="center">
     <img src="../images/pulse_to_position_eval.png" alt="Pulse to position " width="710"/> </br>

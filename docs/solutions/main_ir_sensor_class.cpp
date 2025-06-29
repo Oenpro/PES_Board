@@ -5,7 +5,7 @@
 
 // drivers
 #include "DebounceIn.h"
-#include "Servo.h"
+#include "IRSensor.h"
 
 bool do_execute_main_task = false; // this variable will be toggled via the user button (blue button) and
                                    // decides whether to execute the main task or not
@@ -15,7 +15,7 @@ bool do_reset_all_once = false;    // this variable is used to reset certain var
 // objects for user button (blue button) handling on nucleo board
 DebounceIn user_button(BUTTON1);   // create DebounceIn to evaluate the user button
 void toggle_do_execute_main_fcn(); // custom function which is getting executed when user
-                                   // button gets pressed, definition below
+                                   // button gets pressed, definition at the end
 
 // main runs as an own thread
 int main()
@@ -38,32 +38,12 @@ int main()
     // a led has an anode (+) and a cathode (-), the cathode needs to be connected to ground via the resistor
     DigitalOut led1(PB_9);
 
-    // servo
-    Servo servo_D0(PB_D0);
-    Servo servo_D1(PB_D1);
-
-    // minimal pulse width and maximal pulse width obtained from the servo calibration process
-    // futuba S3001
-    float servo_D0_ang_min = 0.0150f; // carefull, these values might differ from servo to servo
-    float servo_D0_ang_max = 0.1150f;
-    // reely S0090
-    float servo_D1_ang_min = 0.0325f;
-    float servo_D1_ang_max = 0.1175f;
-
-    // servo.setPulseWidth: before calibration (0,1) -> (min pwm, max pwm)
-    // servo.setPulseWidth: after calibration (0,1) -> (servo_D0_ang_min, servo_D0_ang_max)
-    servo_D0.calibratePulseMinMax(servo_D0_ang_min, servo_D0_ang_max);
-    servo_D1.calibratePulseMinMax(servo_D1_ang_min, servo_D1_ang_max);
-
-    // default acceleration of the servo motion profile is 1.0e6f
-    servo_D0.setMaxAcceleration(0.3f);
-    servo_D1.setMaxAcceleration(0.3f);
-
-    // variables to move the servo, this is just an example
-    float servo_input = 0.0f;
-    int servo_counter = 0; // define servo counter, this is an additional variable
-                           // used to command the servo
-    const int loops_per_seconds = static_cast<int>(ceilf(1.0f / (0.001f * static_cast<float>(main_task_period_ms))));
+    // ir distance sensor with average filter and implicit calibration
+    float ir_distance_mV = 0.0f; // define a variable to store measurement (in mV)
+    float ir_distance_cm = 0.0f;
+    float ir_distance_avg = 0.0f;
+    IRSensor ir_sensor(PC_2);                      // before the calibration the read function will return the averaged mV value
+    ir_sensor.setCalibration(2.574e+04f, -29.37f); // after the calibration the read function will return the calibrated value
 
     // start timer
     main_task_timer.start();
@@ -77,22 +57,10 @@ int main()
             // visual feedback that the main task is executed, setting this once would actually be enough
             led1 = 1;
 
-            // enable the servos
-            if (!servo_D0.isEnabled())
-                servo_D0.enable();
-            if (!servo_D1.isEnabled())
-                servo_D1.enable();
-
-            // command the servos
-            servo_D0.setPulseWidth(servo_input);
-            servo_D1.setPulseWidth(servo_input);
-
-            // calculate inputs for the servos for the next cycle
-            if ((servo_input < 1.0f) &&                     // constrain servo_input to be < 1.0f
-                (servo_counter % loops_per_seconds == 0) && // true if servo_counter is a multiple of loops_per_second
-                (servo_counter != 0))                       // avoid servo_counter = 0
-                servo_input += 0.005f;
-            servo_counter++;
+            // read analog input
+            ir_distance_mV = ir_sensor.readmV(); // sensor value in millivolts
+            ir_distance_cm = ir_sensor.readcm(); // sensor value in centimeters (if calibrated)
+            ir_distance_avg = ir_sensor.read();  // after the calibration you actually only need this function call
         } else {
             // the following code block gets executed only once
             if (do_reset_all_once) {
@@ -100,9 +68,9 @@ int main()
 
                 // reset variables and objects
                 led1 = 0;
-                servo_D0.disable();
-                servo_D1.disable();
-                servo_input = 0.0f;
+                ir_distance_mV = 0.0f;
+                ir_distance_cm = 0.0f;
+                ir_distance_avg = 0.0f;
             }
         }
 
@@ -110,7 +78,7 @@ int main()
         user_led = !user_led;
 
         // print to the serial terminal
-        printf("Pulse width: %f \n", servo_input);
+        printf("IR distance mV: %f IR distance cm: %f IR distance cm averaged: %f \n", ir_distance_mV, ir_distance_cm, ir_distance_avg);
 
         // read timer and make the main thread sleep for the remaining time span (non blocking)
         int main_task_elapsed_time_ms = duration_cast<milliseconds>(main_task_timer.elapsed_time()).count();

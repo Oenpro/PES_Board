@@ -5,11 +5,6 @@
 
 // drivers
 #include "DebounceIn.h"
-#include "DCMotor.h"
-#include <Eigen/Dense>
-#include "SensorBar.h"
-
-#define M_PIf 3.14159265358979323846f // pi
 
 bool do_execute_main_task = false; // this variable will be toggled via the user button (blue button) and
                                    // decides whether to execute the main task or not
@@ -19,7 +14,10 @@ bool do_reset_all_once = false;    // this variable is used to reset certain var
 // objects for user button (blue button) handling on nucleo board
 DebounceIn user_button(BUTTON1);   // create DebounceIn to evaluate the user button
 void toggle_do_execute_main_fcn(); // custom function which is getting executed when user
-                                   // button gets pressed, definition below
+                                   // button gets pressed, definition at the end
+
+// function declaration, definition at the end
+float ir_sensor_compensation(float ir_distance_mV);
 
 // main runs as an own thread
 int main()
@@ -42,36 +40,11 @@ int main()
     // a led has an anode (+) and a cathode (-), the cathode needs to be connected to ground via the resistor
     DigitalOut led1(PB_9);
 
-    // create object to enable power electronics for the dc motors
-    DigitalOut enable_motors(PB_ENABLE_DCMOTORS);
-
-    const float voltage_max = 12.0f; // maximum voltage of battery packs, adjust this to
-                                     // 6.0f V if you only use one battery pack
-    const float gear_ratio = 78.125f; 
-    const float kn = 180.0f / 12.0f;
-    // motor M1 and M2, do NOT enable motion planner, disabled per default
-    DCMotor motor_M1(PB_PWM_M1, PB_ENC_A_M1, PB_ENC_B_M1, gear_ratio, kn, voltage_max);
-    DCMotor motor_M2(PB_PWM_M2, PB_ENC_A_M2, PB_ENC_B_M2, gear_ratio, kn, voltage_max);
-
-    const float r1_wheel = 0.0175f; // right wheel radius in meters
-    const float r2_wheel = 0.0175f; // left  wheel radius in meters
-    const float b_wheel = 0.1518f;  // wheelbase, distance from wheel to wheel in meters
-    // transforms robot to wheel velocities
-    Eigen::Matrix2f Cwheel2robot;
-    Cwheel2robot << r1_wheel / 2.0f   ,  r2_wheel / 2.0f   ,
-                    r1_wheel / b_wheel, -r2_wheel / b_wheel;
-
-    const float bar_dist = 0.118f; // distance from wheel axis to leds on sensor bar / array in meters
-    SensorBar sensorBar(PB_9, PB_8, bar_dist);
-
-    // angle measured from sensor bar (black line) relative to robot
-    float angle{0.0f};
-
-    // rotational velocity controller
-    const float Kp{5.0f};
-
-    // velocity controller data
-    const float wheel_vel_max = 2.0f * M_PIf * motor_M2.getMaxPhysicalVelocity();
+    // ir distance sensor
+    float ir_distance_mV = 0.0f; // define a variable to store measurement (in mV)
+    float ir_distance_cm = 0.0f;
+    AnalogIn ir_analog_in(PC_2); // create AnalogIn object to read in the infrared distance sensor
+                                 // 0...3.3V are mapped to 0...1
 
     // start timer
     main_task_timer.start();
@@ -84,23 +57,10 @@ int main()
 
             // visual feedback that the main task is executed, setting this once would actually be enough
             led1 = 1;
-            enable_motors = 1;
 
-            // only update sensor bar angle if a led is triggered
-            if (sensorBar.isAnyLedActive())
-                angle = sensorBar.getAvgAngleRad();
-
-            // control algorithm in robot velocities
-            Eigen::Vector2f robot_coord = {0.5f * wheel_vel_max * r1_wheel, // half of the max. forward velocity
-                                           Kp * angle};                     // proportional angle controller
-
-            // map robot velocities to wheel velocities in rad/sec
-            Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord;
-
-            // setpoints for the dc-motors in rps
-            motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
-            motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-
+            // read analog input
+            ir_distance_mV = 1.0e3f * ir_analog_in.read() * 3.3f;
+            ir_distance_cm = ir_sensor_compensation(ir_distance_mV);
         } else {
             // the following code block gets executed only once
             if (do_reset_all_once) {
@@ -108,12 +68,16 @@ int main()
 
                 // reset variables and objects
                 led1 = 0;
-                enable_motors = 0;
+                ir_distance_mV = 0.0f;
+                ir_distance_cm = 0.0f;
             }
         }
 
         // toggling the user led
         user_led = !user_led;
+
+        // print to the serial terminal
+        printf("IR distance mV: %f IR distance cm: %f \n", ir_distance_mV, ir_distance_cm);
 
         // read timer and make the main thread sleep for the remaining time span (non blocking)
         int main_task_elapsed_time_ms = duration_cast<milliseconds>(main_task_timer.elapsed_time()).count();
@@ -131,4 +95,17 @@ void toggle_do_execute_main_fcn()
     // set do_reset_all_once to true if do_execute_main_task changed from false to true
     if (do_execute_main_task)
         do_reset_all_once = true;
+}
+
+float ir_sensor_compensation(float ir_distance_mV)
+{
+    // insert values that you got from the MATLAB or Python file
+    static const float a = 2.574e+04f;
+    static const float b = -29.37f;
+
+    // avoid division by zero by adding a small value to the denominator
+    if (ir_distance_mV + b == 0.0f)
+        ir_distance_mV -= 0.001f;
+
+    return a / (ir_distance_mV + b);
 }

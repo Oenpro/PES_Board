@@ -63,8 +63,8 @@
         - dc_motor.md                   (ok & spell checked)   ->   ws3  , 3
         - imu.md                        (ok & spell checked)
         - ir_sensor.md                  (ok & spell checked)   ->   ws1  , 6
-        - kinematics.md                 (ok & spell checked)
-        - line_follower.md              (ok & spell checked)
+        - dd_kinematics.md              (ok & spell checked)   ->   ws4  , 2
+        - line_follower.md              (ok & spell checked)   ->   ws4  , 3
         - main_description.md           (ok & spell checked)   ->   ws1  , 5
         - my_dc_motor.md                (ok & spell checked)
         - sd_card_logger.md             (ok & spell checked)
@@ -75,28 +75,28 @@
         - ws1.md                        (ok & spell checked)   ->   ws1  , 4
         - ws2.md                        (ok & spell checked)   ->   ws2  , 2
         - ws3.md                        (ok & spell checked)   ->   ws3  , 2
-        - ws4.md                        does not exist yet
+        - ws4.md                        (ok & spell checked)   ->   ws4  , 1
         - ws5.md                        (ok & spell checked)
         - ws6.md                        does not exist yet
 
         Solutions:
         - main_base.cpp                       (ok)
-        - main_calib_kinematic_ss24.cpp       (ok)
+        - main_dd_kinematic_calib.cpp         (ok)
         - main_comp_filter.cpp                (ok)
         - main_gimbal.cpp                     (ok)
         - main_my_dc_motor.cpp                (ok)
         - main_line_follower.cpp              (ok)
-        - main_line_follower_base_ss24.cpp    (ok)
+        - main_line_follower_base.cpp         (ok)
         - main_pes_monster.cpp                (ok)
         - main_sd_card_logger.cpp             (ok)
         - main_sd_card_logger_with_time.cpp   (ok)
         - main_serial_stream.cpp              (ok)
         - main_stepper_motor.cpp              (ok)
-        - main_ws1.cpp                        (ok)
-        - main_ws1_ir_sensor_class.cpp        (ok)
-        - main_ws2_p1.cpp                     (ok)
+        - main_ir_sensor.cpp                  (ok)
+        - main_ir_sensor_class.cpp            (ok)
+        - main_servo.cpp                      (ok)
         - main_ws2_p2.cpp                     (ok)
-        - main_ws3_p1.cpp                     (ok)
+        - main_dc_motor.cpp                   (ok)
         - main_ws3_p2.cpp                     (ok)
   -->
 
@@ -151,6 +151,7 @@ Fast prototyping in robotics focuses on quickly building and testing a simple ve
     * [Workshop 1](docs/markdown/ws1.md)
     * [Workshop 2](docs/markdown/ws2.md)
     * [Workshop 3](docs/markdown/ws3.md)
+    * [Workshop 4](docs/markdown/ws4.md)
     <!-- * [Workshop 5](docs/markdown/ws5.md) -->
 5. [Build Mbed OS projects with VS Code](#build-mbed-os-projects-with-vs-code)
     * [Build Mbed on Windows with VS Code](docs/markdown/build_mbed_windows.md)
@@ -292,18 +293,22 @@ The following links contain the workshop instructions:
 - [Workshop 1](docs/markdown/ws1.md)
 - [Workshop 2](docs/markdown/ws2.md)
 - [Workshop 3](docs/markdown/ws3.md)
+- [Workshop 4](docs/markdown/ws4.md)
 <!-- - [Workshop 5](docs/markdown/ws5.md) -->
 
 And below you will find all the solutions, as well as some additional examples:
-- [Solution Workshop 1](docs/solutions/main_ws1.cpp)
-- [Solution Workshop 2, Part 1](docs/solutions/main_ws2_p1.cpp)
-- [Solution Workshop 2, Part 2](docs/solutions/main_ws2_p2.cpp)
-- [Solution Workshop 3, Part 1](docs/solutions/main_ws3_p1.cpp)
-- [Solution Workshop 3, Part 2](docs/solutions/main_ws3_p2.cpp)
-- [Example Line Follower](docs/solutions/main_line_follower.cpp)
+- [Workshop 1 Solution: Example Infrared Distance Sensor](docs/solutions/main_ir_sensor.cpp)
+- [Workshop 1 Solution: Example Infrared Distance Sensor using IRSensor class](docs/solutions/main_ir_sensor_class.cpp)
+- [Workshop 2 Part 1 Solution: Example Servo](docs/solutions/main_servo.cpp)
+- [Workshop 2 Part 2 Solution](docs/solutions/main_ws2_p2.cpp)
+- [Workshop 2 Part 2 Solution with IRSensor class instead of Ultrasonic Sensor](docs/solutions/main_ws2_p2_ir_sensor.cpp)
+- [Workshop 3 Part 1 Solution: Example DC Motor](docs/solutions/main_dc_motor.cpp)
+- [Workshop 3 Part 2 Solution](docs/solutions/main_ws3_p2.cpp)
+- [Workshop 3 Part 2 Solution with IRSensor class instead of Ultrasonic Sensor](docs/solutions/main_ws3_p2_ir_sensor.cpp)
+- [Workshop 4 Part 1 Solution: Example Differential Drive Robot Kinematics Calibration](../solutions/main_dd_kinematic_calib.cpp)
+- [Workshop 4 Part 2 Solution: Example Line Follower Base](../solutions/main_line_follower_base.cpp)
+- [Workshop 4 Part 2 Solution: Example Line Follower](../solutions/main_line_follower.cpp)
 - [Example Gimbal](docs/solutions/main_gimbal.cpp)
-- [Example Line Follower Base Example](docs/solutions/main_line_follower_base_ss24.cpp)
-- [Example Differential Drive Robot Kinematics Calibration](docs/solutions/main_calib_kinematic_ss24.cpp)
 - [Example Stepper Motor](docs/solutions/main_stepper_motor.cpp)
 - [Example 1 SD-Card](docs/solutions/main_sd_card_logger_e1.cpp)
 - [Example 2 SD-Card](docs/solutions/main_sd_card_logger_e2.cpp)
@@ -311,7 +316,7 @@ And below you will find all the solutions, as well as some additional examples:
 
 ### Additional Information
 
-- [Differential Drive Kinematics](docs/markdown/kinematics.md)
+- [Differential Drive Robot Kinematics](docs/markdown/dd_kinematics.md)
 
 ## Build Mbed OS projects with VS Code
 
