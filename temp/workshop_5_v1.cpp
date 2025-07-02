@@ -6,7 +6,9 @@
 // drivers
 #include "DebounceIn.h"
 #include "IMU.h"
-#include "SerialStream.h"
+#include "Servo.h"
+
+#define M_PIf 3.14159265358979323846f // pi
 
 bool do_execute_main_task = false; // this variable will be toggled via the user button (blue button) and
                                    // decides whether to execute the main task or not
@@ -34,56 +36,81 @@ int main()
     // led on nucleo board
     DigitalOut user_led(LED1);
 
-    // additional led
-    // create DigitalOut object to command extra led, you need to add an additional resistor, e.g. 220...500 Ohm
-    // a led has an anode (+) and a cathode (-), the cathode needs to be connected to ground via the resistor
-    DigitalOut led1(PB_9);
-
     // --- adding variables and objects and applying functions starts here ---
+
+    // servo
+    Servo servo_roll(PB_D0);
+    Servo servo_pitch(PB_D1);
 
     // imu
     ImuData imu_data;
     IMU imu(PB_IMU_SDA, PB_IMU_SCL);
+    Eigen::Vector2f rp(0.0f, 0.0f);
 
-    // serial stream to send data over uart
-    SerialStream serialStream(PB_UNUSED_UART_TX, PB_UNUSED_UART_RX);
+    // minimal pulse width and maximal pulse width obtained from the servo calibration process
+    // modelcraft RS2 MG/BB
+    float servo_ang_min = 0.035f;
+    float servo_ang_max = 0.130f;
 
-    // additional timer to measure time elapsed since last call
-    Timer logging_timer;
-    microseconds time_previous_us{0};
+    // servo.setPulseWidth: before calibration (0,1) -> (min pwm, max pwm)
+    // servo.setPulseWidth: after calibration (0,1) -> (servo_D0_ang_min, servo_D0_ang_max)
+    servo_roll.calibratePulseMinMax(servo_ang_min, servo_ang_max);
+    servo_pitch.calibratePulseMinMax(servo_ang_min, servo_ang_max);
+
+    // angle limits of the servos
+    const float angle_range_min = -M_PIf / 2.0f;
+    const float angle_range_max =  M_PIf / 2.0f;
+
+    // angle to pulse width coefficients
+    const float normalised_angle_gain = 1.0f / M_PIf;
+    const float normalised_angle_offset = 0.5f;
+
+    // pulse width
+    static float roll_servo_width = 0.5f;
+    static float pitch_servo_width = 0.5f;
+
+    servo_roll.setPulseWidth(roll_servo_width);
+    servo_pitch.setPulseWidth(pitch_servo_width);
 
     // start timer
     main_task_timer.start();
-    logging_timer.start();
 
     // this loop will run forever
     while (true) {
         main_task_timer.reset();
 
-        // measure delta time
-        const microseconds time_us = logging_timer.elapsed_time();
-        const float dtime_us = duration_cast<microseconds>(time_us - time_previous_us).count();
-        time_previous_us = time_us;
-
         if (do_execute_main_task) {
 
         // --- code that runs when the blue button was pressed goes here ---
 
-            // visual feedback that the main task is executed, setting this once would actually be enough
-            led1 = 1;
+            // enable the servos
+            if (!servo_roll.isEnabled())
+                servo_roll.enable();
+            if (!servo_pitch.isEnabled())
+                servo_pitch.enable();
 
             // read imu data
             imu_data = imu.getImuData();
 
-            if (serialStream.startByteReceived()) {
-                // send data over serial stream
-                serialStream.write( dtime_us );         //  0 delta time in us
-                serialStream.write( imu_data.gyro(0) ); //  1 gyro x in rad/s
-                serialStream.write( imu_data.acc(1) );  //  2 acc y in m/s^2
-                serialStream.write( imu_data.acc(2) );  //  3 acc z in m/s^2
-                serialStream.write( imu_data.rpy(0) );  //  4 roll in rad
-                serialStream.send();
-            }
+            // // roll, pitch, yaw according to Tait-Bryan angles ZYX
+            // // where R = Rz(yaw) * Ry(pitch) * Rx(roll) for ZYX sequence
+            // // singularity at pitch = +/-pi/2 radians (+/- 90 deg)
+            // rp(0) = imu_data.rpy(0); // roll angle
+            // rp(1) = imu_data.rpy(1); // pitch angle
+
+            // pitch, roll, yaw according to Tait-Bryan angles ZXY
+            // where R = Rz(yaw) * Rx(roll) * Ry(pitch)
+            // singularity at roll = +/-pi/2
+            rp(0) = imu_data.pry(1); // roll angle
+            rp(1) = imu_data.pry(0); // pitch angle
+
+            // map to servo commands
+            roll_servo_width  = -normalised_angle_gain * rp(0) + normalised_angle_offset;
+            pitch_servo_width =  normalised_angle_gain * rp(1) + normalised_angle_offset;
+            if (angle_range_min <= rp(0) && rp(0) <= angle_range_max)
+                servo_roll.setPulseWidth(roll_servo_width);
+            if (angle_range_min <= rp(1) && rp(1) <= angle_range_max)
+                servo_pitch.setPulseWidth(pitch_servo_width);
 
         } else {
             // the following code block gets executed only once
@@ -93,8 +120,10 @@ int main()
                 // --- variables and objects that should be reset go here ---
 
                 // reset variables and objects
-                serialStream.reset();
-                led1 = 0;
+                roll_servo_width = 0.5f;
+                pitch_servo_width = 0.5f;
+                servo_roll.setPulseWidth(roll_servo_width);
+                servo_pitch.setPulseWidth(pitch_servo_width);
             }
         }
 
@@ -102,6 +131,9 @@ int main()
         user_led = !user_led;
 
         // --- code that runs every cycle goes here ---
+
+        // print to the serial terminal
+        printf("%6.2f, %6.2f \n", roll_servo_width, pitch_servo_width);
 
         // read timer and make the main thread sleep for the remaining time span (non blocking)
         int main_task_elapsed_time_ms = duration_cast<milliseconds>(main_task_timer.elapsed_time()).count();

@@ -1,8 +1,8 @@
 clc, clear all
 %%
 
-port = '/dev/ttyUSB0'; % port = 'COM12';
-baudrate = 2e6;
+port = 'COM8'; %'/dev/ttyUSB0'; % port = 'COM12';
+baudrate = 115200;
 
 % Initialize the SerialStream object
 try

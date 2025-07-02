@@ -5,8 +5,9 @@
 
 // drivers
 #include "DebounceIn.h"
-#include "IMU.h"
-#include "SerialStream.h"
+#include <IRSensor.h>
+
+float ir_sensor_compensation(float ir_distance_mV);
 
 bool do_execute_main_task = false; // this variable will be toggled via the user button (blue button) and
                                    // decides whether to execute the main task or not
@@ -16,7 +17,10 @@ bool do_reset_all_once = false;    // this variable is used to reset certain var
 // objects for user button (blue button) handling on nucleo board
 DebounceIn user_button(BUTTON1);   // create DebounceIn to evaluate the user button
 void toggle_do_execute_main_fcn(); // custom function which is getting executed when user
-                                   // button gets pressed, definition at the end
+                                   // button gets pressed, definition below
+
+
+
 
 // main runs as an own thread
 int main()
@@ -39,69 +43,50 @@ int main()
     // a led has an anode (+) and a cathode (-), the cathode needs to be connected to ground via the resistor
     DigitalOut led1(PB_9);
 
-    // --- adding variables and objects and applying functions starts here ---
-
-    // imu
-    ImuData imu_data;
-    IMU imu(PB_IMU_SDA, PB_IMU_SCL);
-
-    // serial stream to send data over uart
-    SerialStream serialStream(PB_UNUSED_UART_TX, PB_UNUSED_UART_RX);
-
-    // additional timer to measure time elapsed since last call
-    Timer logging_timer;
-    microseconds time_previous_us{0};
-
+    // ir distance sensor
+    float ir_distance_mV = 0.0f; // define a variable to store measurement (in mV)
+    float ir_distance_cm = 0.0f;
+    // AnalogIn ir_analog_in(PC_2); // create AnalogIn object to read in the infrared distance sensor
+                                // 0...3.3V are mapped to 0...1
+    IRSensor ir_sensor(PC_2, 10309.7644f, -172.5231f); 
+    
     // start timer
     main_task_timer.start();
-    logging_timer.start();
 
     // this loop will run forever
     while (true) {
         main_task_timer.reset();
 
-        // measure delta time
-        const microseconds time_us = logging_timer.elapsed_time();
-        const float dtime_us = duration_cast<microseconds>(time_us - time_previous_us).count();
-        time_previous_us = time_us;
-
         if (do_execute_main_task) {
 
-        // --- code that runs when the blue button was pressed goes here ---
+            // read analog input
+            // ir_distance_mV = 1.0e3f * ir_analog_in.read() * 3.3f;
+            // ir_distance_cm = ir_sensor_compensation(ir_distance_mV);
+            ir_distance_mV = ir_sensor.readmV(); // sensor value in millivolts
+            ir_distance_cm = ir_sensor.readcm(); // sensor value in centimeters (if calibrated)   
 
             // visual feedback that the main task is executed, setting this once would actually be enough
             led1 = 1;
-
-            // read imu data
-            imu_data = imu.getImuData();
-
-            if (serialStream.startByteReceived()) {
-                // send data over serial stream
-                serialStream.write( dtime_us );         //  0 delta time in us
-                serialStream.write( imu_data.gyro(0) ); //  1 gyro x in rad/s
-                serialStream.write( imu_data.acc(1) );  //  2 acc y in m/s^2
-                serialStream.write( imu_data.acc(2) );  //  3 acc z in m/s^2
-                serialStream.write( imu_data.rpy(0) );  //  4 roll in rad
-                serialStream.send();
-            }
 
         } else {
             // the following code block gets executed only once
             if (do_reset_all_once) {
                 do_reset_all_once = false;
 
-                // --- variables and objects that should be reset go here ---
-
                 // reset variables and objects
-                serialStream.reset();
                 led1 = 0;
+                ir_distance_mV = 0.0f;
+                ir_distance_cm = 0.0f;
             }
         }
 
+        // print to the serial terminal
+        printf("IR distance mV: %f \n", ir_distance_mV);
+        // print to the serial terminal
+        printf("IR distance mV: %f IR distance cm: %f \n", ir_distance_mV, ir_distance_cm);
+
         // toggling the user led
         user_led = !user_led;
-
-        // --- code that runs every cycle goes here ---
 
         // read timer and make the main thread sleep for the remaining time span (non blocking)
         int main_task_elapsed_time_ms = duration_cast<milliseconds>(main_task_timer.elapsed_time()).count();
@@ -119,4 +104,18 @@ void toggle_do_execute_main_fcn()
     // set do_reset_all_once to true if do_execute_main_task changed from false to true
     if (do_execute_main_task)
         do_reset_all_once = true;
+}
+
+float ir_sensor_compensation(float ir_distance_mV)
+{
+    // insert values that you got from the MATLAB file
+    static const float a = 10309.7644f;
+    static const float b = -172.5231f;
+
+    // avoid division by zero by adding a small value to the denominator
+    if (ir_distance_mV + b == 0.0f)
+        ir_distance_mV -= 0.001f;
+
+    // printf("Print.. %f \n", ir_distance_mV + b);
+    return a / (ir_distance_mV + b);
 }
