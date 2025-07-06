@@ -7,9 +7,6 @@
 #include "DebounceIn.h"
 #include "IMU.h"
 #include "Servo.h"
-#include "DCMotor.h"
-#include <Eigen/Dense>
-#include "SensorBar.h"
 
 #define M_PIf 3.14159265358979323846f // pi
 
@@ -84,40 +81,6 @@ int main()
     float roll_estimate = 0.0f;
     float pitch_estimate = 0.0f;
 
-        // create object to enable power electronics for the dc motors
-    DigitalOut enable_motors(PB_ENABLE_DCMOTORS);
-
-    const float voltage_max = 12.0f; // maximum voltage of battery packs, adjust this to
-                                     // 6.0f V if you only use one battery pack
-    const float gear_ratio = 100.00f;
-    const float kn = 140.0f / 12.0f;
-
-    // motor M1 and M2, do NOT enable motion planner when used with the LineFollower (disabled per default)
-    DCMotor motor_M1(PB_PWM_M1, PB_ENC_A_M1, PB_ENC_B_M1, gear_ratio, kn, voltage_max);
-    DCMotor motor_M2(PB_PWM_M2, PB_ENC_A_M2, PB_ENC_B_M2, gear_ratio, kn, voltage_max);
-
-    // differential drive robot kinematics
-    const float d_wheel = 0.0372f; // wheel diameter in meters
-    const float b_wheel = 0.156f;  // wheelbase, distance from wheel to wheel in meters
-    const float bar_dist = 0.114f; // distance from wheel axis to leds on sensor bar / array in meters
-    const float r1_wheel = d_wheel / 2.0f; // right wheel radius in meters
-    const float r2_wheel = d_wheel / 2.0f; // left  wheel radius in meters
-    // transforms wheel to robot velocities
-    Eigen::Matrix2f Cwheel2robot;
-    Cwheel2robot << r1_wheel / 2.0f   ,  r2_wheel / 2.0f   ,
-                    r1_wheel / b_wheel, -r2_wheel / b_wheel;
-
-    // sensor bar
-    SensorBar sensor_bar(PB_9, PB_8, bar_dist);
-
-    // angle measured from sensor bar (black line) relative to robot
-    float angle{0.0f};
-
-    // rotational velocity controller
-    const float Kp = 1.2f * 2.0f;
-    const float Kp_nl = 1.2f * 17.0f;
-    const float wheel_vel_max = 2.0f * M_PIf * motor_M2.getMaxPhysicalVelocity();
-
     // start timer
     main_task_timer.start();
 
@@ -160,27 +123,6 @@ int main()
 
         // --- code that runs when the blue button was pressed goes here ---
 
-            enable_motors = 1;
-
-            // only update sensor bar angle if an led is triggered
-            if (sensor_bar.isAnyLedActive())
-                angle = sensor_bar.getAvgAngleRad();
-
-            // // control algorithm for robot velocities
-            // Eigen::Vector2f robot_coord = {0.5f * wheel_vel_max * r1_wheel,  // half of the max. forward velocity
-            //                                Kp * angle                     }; // simple proportional angle controller
-
-            // control algorithm for robot velocities
-            Eigen::Vector2f robot_coord = {0.5f * wheel_vel_max * r1_wheel,  // half of the max. forward velocity
-                                           Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
-
-            // map robot velocities to wheel velocities in rad/sec
-            Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord;
-
-            // setpoints for the dc motors in rps
-            motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
-            motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-
             // enable the servos
             if (!servo_roll.isEnabled())
                 servo_roll.enable();
@@ -207,7 +149,6 @@ int main()
                 pitch_servo_width = 0.5f;
                 servo_roll.setPulseWidth(roll_servo_width);
                 servo_pitch.setPulseWidth(pitch_servo_width);
-                enable_motors = 0;
             }
         }
 
