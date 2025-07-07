@@ -117,6 +117,7 @@ int main()
     const float Kp = 1.2f * 2.0f;
     const float Kp_nl = 1.2f * 17.0f;
     const float wheel_vel_max = 2.0f * M_PIf * motor_M2.getMaxPhysicalVelocity();
+    const float maximum_velocity = wheel_vel_max*r1_wheel; // maximum velocity
 
     // start timer
     main_task_timer.start();
@@ -170,8 +171,11 @@ int main()
             // Eigen::Vector2f robot_coord = {0.5f * wheel_vel_max * r1_wheel,  // half of the max. forward velocity
             //                                Kp * angle                     }; // simple proportional angle controller
 
-            // control algorithm for robot velocities
-            Eigen::Vector2f robot_coord = {0.5f * wheel_vel_max * r1_wheel,  // half of the max. forward velocity
+            // // control algorithm for robot velocities
+            // Eigen::Vector2f robot_coord = {0.5f * wheel_vel_max * r1_wheel,  // half of the max. forward velocity
+            //                                Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
+        
+            Eigen::Vector2f robot_coord = {maximum_velocity/(1+(17*angle)),  // forward velocity changes with the error value
                                            Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
 
             // map robot velocities to wheel velocities in rad/sec
