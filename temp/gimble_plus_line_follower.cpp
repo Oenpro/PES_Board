@@ -51,8 +51,9 @@ int main()
     Eigen::Vector2f rp(0.0f, 0.0f);
 
     // minimal pulse width and maximal pulse width obtained from the servo calibration process
+    // careful, these values might differ from servo to servo
     // reely s-0090
-    float servo_D0_ang_min = 0.0350f; // careful, these values might differ from servo to servo
+    float servo_D0_ang_min = 0.0350f; 
     float servo_D0_ang_max = 0.1200f;
     // reely S3003
     float servo_D1_ang_min = 0.0250f;
@@ -97,9 +98,9 @@ int main()
     DCMotor motor_M2(PB_PWM_M2, PB_ENC_A_M2, PB_ENC_B_M2, gear_ratio, kn, voltage_max);
 
     // differential drive robot kinematics
-    const float d_wheel = 0.0372f; // wheel diameter in meters
-    const float b_wheel = 0.156f;  // wheelbase, distance from wheel to wheel in meters
-    const float bar_dist = 0.114f; // distance from wheel axis to leds on sensor bar / array in meters
+    const float d_wheel = 0.0356f; // wheel diameter in meters
+    const float b_wheel = 0.13f;  // wheelbase, distance from wheel to wheel in meters
+    const float bar_dist = 0.158f; // distance from wheel axis to leds on sensor bar / array in meters
     const float r1_wheel = d_wheel / 2.0f; // right wheel radius in meters
     const float r2_wheel = d_wheel / 2.0f; // left  wheel radius in meters
     // transforms wheel to robot velocities
@@ -166,6 +167,7 @@ int main()
             // only update sensor bar angle if an led is triggered
             if (sensor_bar.isAnyLedActive())
                 angle = sensor_bar.getAvgAngleRad();
+            // printf("angle: %f \n ", angle);
 
             // // control algorithm for robot velocities
             // Eigen::Vector2f robot_coord = {0.5f * wheel_vel_max * r1_wheel,  // half of the max. forward velocity
@@ -174,8 +176,8 @@ int main()
             // // control algorithm for robot velocities
             // Eigen::Vector2f robot_coord = {0.5f * wheel_vel_max * r1_wheel,  // half of the max. forward velocity
             //                                Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
-
-            Eigen::Vector2f robot_coord = {maximum_velocity/(1+(17*angle)),  // forward velocity changes with the error value
+        
+            Eigen::Vector2f robot_coord = {maximum_velocity/(1+(4*fabsf(angle))),  // forward velocity changes with the error value
                                            Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
 
             // map robot velocities to wheel velocities in rad/sec
