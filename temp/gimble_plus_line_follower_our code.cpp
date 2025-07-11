@@ -22,7 +22,6 @@ bool do_reset_all_once = false;    // this variable is used to reset certain var
 DebounceIn user_button(BUTTON1);   // create DebounceIn to evaluate the user button
 void toggle_do_execute_main_fcn(); // custom function which is getting executed when user
                                    // button gets pressed, definition at the end
-float tanh_controller(float x);
 
 // main runs as an own thread
 int main()
@@ -181,11 +180,8 @@ int main()
             // Eigen::Vector2f robot_coord = {0.5f * wheel_vel_max * r1_wheel,  // half of the max. forward velocity
             //                                Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
         
-            Eigen::Vector2f robot_coord = {maximum_velocity/(1+(4*fabsf(angle)))*(1- tanh_controller(Kp_nl*fabsf(angle))),  // forward velocity changes with the error value
-                                           Kp * angle +  tanh_controller(Kp_nl *angle)                 }; // simple proportional angle controller
-
-            // Eigen::Vector2f robot_coord = {(0.5f * wheel_vel_max * r1_wheel)*(1- tanh_controller(kp_nl*fabsf(angle))),  // half of the max. forward velocity
-            //                                Kp * angle +  tanh_controller(kp_nl *angle)
+            Eigen::Vector2f robot_coord = {maximum_velocity/(1+(4*fabsf(angle))),  // forward velocity changes with the error value
+                                           Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
 
             // map robot velocities to wheel velocities in rad/sec
             Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord;
@@ -252,8 +248,4 @@ void toggle_do_execute_main_fcn()
     // set do_reset_all_once to true if do_execute_main_task changed from false to true
     if (do_execute_main_task)
         do_reset_all_once = true;
-}
-
-float tanh_controller(float e) {
-    return e / (1.0f + fabsf(e));
 }
