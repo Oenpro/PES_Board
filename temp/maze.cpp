@@ -137,9 +137,9 @@ int main()
     enum RobotState {
         INITIAL,
         STOP,
-        FORWARD,
-        // BACKWARD,
-        // EMERGENCY
+        // FORWARD,
+        LEARNING,
+        EXECUTE
     } robot_state = RobotState::INITIAL;
 
     robot_state = RobotState::INITIAL;
@@ -215,17 +215,23 @@ int main()
                 case RobotState::INITIAL: {
                     // enable hardwaredriver dc motors: 0 -> disabled, 1 -> enabled
                     enable_motors = 1;
-                    robot_state = RobotState::FORWARD;
+                    // robot_state = RobotState::FORWARD;
+                    robot_state = RobotState::LEARNING;
 
                     break;
                 }
-                case RobotState::STOP: {
-                    motor_M1.setVelocity(0);
-                    motor_M2.setVelocity(0);
+                // case RobotState::STOP: {
+                //     motor_M1.setVelocity(0);
+                //     motor_M2.setVelocity(0);
+                //     break;
+                // }
+                case RobotState::EXECUTE: {
+
+                    // Code to run after the maze has been learned by the robot
                     break;
                 }
-                case RobotState::FORWARD: {
-                // Detect the type of junction
+                case RobotState::LEARNING: {
+
                     switch(direction){
                         case Direction::STRAIGHT: {
                             printf("I am going straight \n"); 
@@ -242,72 +248,141 @@ int main()
                             motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                             motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
 
-                            // Check if the robot needs to turn right or left
+                            // Check for the next junction type
                             if (leftTurn){
                                 direction = Direction::LEFT;
                             }
-                            if (rightTurn){
-                                direction = Direction::RIGHT;
+                            else if (rightTurn){
+                                direction = Direction::RIGHT;                                
                             }
                             if (crossRoad == 1){
-                                end_counter++;
+                                // move foward by 1 inch
 
-                                if (end_counter > 6){
+                                // Check the sensor reading again if you have a reading at the center or still a crossroad reading.
+                                leftMean = sensor_bar.getMeanThreeAvgBitsLeft();
+                                centerMean = sensor_bar.getMeanFourAvgBitsCenter();
+                                rightMean = sensor_bar.getMeanThreeAvgBitsRight();
+                                crossRoad = (leftMean > 0.5f && centerMean > 0.5f && rightMean > 0.5f);
+
+                                // If the crossroad is still reading positive then we are at the end.
+                                if (crossRoad){
                                     node_type = NodeType::GOAL; 
                                     printf("niko kwa goal \n");
                                     robot_state = RobotState::STOP;
                                     motor_M1.setVelocity(0);
                                     motor_M2.setVelocity(0);
                                 }
+                                // if we only have center mean, then we have a straight route to explore i.e @ '+' junction
+                                else if (!crossRoad && centerMean){
+                                    // Prioritize turning to the left first, then straight, then right
+                                }
+                                // If we dont have a reading, we are at a T junction.
+                                else {
+                                    // Prioritize turning left
+                                }
+
+                                // end_counter++;
+
+                                // if (end_counter > 6){
+                                //     node_type = NodeType::GOAL; 
+                                //     printf("niko kwa goal \n");
+                                //     robot_state = RobotState::STOP;
+                                //     motor_M1.setVelocity(0);
+                                //     motor_M2.setVelocity(0);
+                                // }
                             }
-                            // if (isIntersection == 0){
-                            //     direction = Direction::U_TURN;
-                            // }
+
+                            // Detecting a deadend. Centermean transitions from 1 to 0.
+                            if (isIntersection == 0){
+                                direction = Direction::U_TURN;
+                            }
 
                             break;
                         }
                         case Direction::LEFT: {
                             printf("Naenda Left \n"); 
                             //**********Record the node details ***************/
-                            
-                            // Code to move the robot straight
-                            Eigen::Vector2f robot_coord = {maximum_velocity/(1+(4*fabsf(angle))),  // forward velocity changes with the error value
-                            Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
 
-                            // map robot velocities to wheel velocities in rad/sec
-                            Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord;
+                            // move foward by 1 inch
 
-                            // setpoints for the dc motors in rps
-                            motor_M1.setVelocity(-(wheel_speed(0) / (2.0f * M_PIf))); // set a desired speed for speed controlled dc motors M1
-                            motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-                            
-                            // Check if the robot has turned left and is at its center
-                            if (centerMean){
-                                direction = Direction::STRAIGHT;
+                            // Check the sensor reading again if you have a reading at the center or no reading.
+                            centerMean = sensor_bar.getMeanFourAvgBitsCenter();
+
+                            // If no reading, turn left by 90 degrees
+                            if (centerMean == 0.0f){
+                            //  Code to turn the robot to the left  
+
                             }
+                            // If there is a reading then you can either turn left or go straight
+                            else {
+                            // Left hand wall follower. Will prioritize turning left over the straight direction
+                            // Record the turn direction taken
+                            // Check if the stored 3 directions can be simplified
+                            }
+
+                            // Afterwards, change the direction to straight
+                            direction = Direction::STRAIGHT;
+
+
+                            // // Code to move the robot straight
+                            // Eigen::Vector2f robot_coord = {maximum_velocity/(1+(4*fabsf(angle))),  // forward velocity changes with the error value
+                            // Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
+
+                            // // map robot velocities to wheel velocities in rad/sec
+                            // Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord;
+
+                            // // setpoints for the dc motors in rps
+                            // motor_M1.setVelocity(-(wheel_speed(0) / (2.0f * M_PIf))); // set a desired speed for speed controlled dc motors M1
+                            // motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                            
+                            // // Check if the robot has turned left and is at its center
+                            // if (centerMean){
+                            //     direction = Direction::STRAIGHT;
+                            // }
                             break;
                         }
                         case Direction::RIGHT: {
                             printf("Naenda Right \n"); 
                             //**********Record the node details ***************/
-                            
-                            // Code to move the robot right
-                            Eigen::Vector2f robot_coord = {maximum_velocity/(1+(1000*fabsf(angle))),  // forward velocity changes with the error value
-                            (Kp * angle + Kp_nl * angle * fabsf(angle))                 }; // simple proportional angle controller
+                            // move foward by 1 inch
 
-                            // map robot velocities to wheel velocities in rad/sec
-                            Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord;
+                            // Check the sensor reading again if you have a reading at the center or no reading.
+                            centerMean = sensor_bar.getMeanFourAvgBitsCenter();
 
-                            // setpoints for the dc motors in rps
-                            motor_M1.setVelocity((wheel_speed(0) / (2.0f * M_PIf))); // set a desired speed for speed controlled dc motors M1
-                            motor_M2.setVelocity((wheel_speed(1) / (2.0f * M_PIf))); // set a desired speed for speed controlled dc motors M2
-                            
-                            // delay((int)(turn_duration * 1000));  // convert to ms
+                            // If no reading, turn right by 90 degrees
+                            if (centerMean == 0.0f){
+                            //  Code to turn the robot to the right  
 
-                            // Check if the robot has turned left and is at its center
-                            if (centerMean){
-                                direction = Direction::STRAIGHT;
+
                             }
+                            // If there is a reading then you can either turn right or go straight
+                            else {
+                            // Left hand wall follower. Will prioritize going straigt over the Right turn
+                            // Record the turn direction taken
+                            // Check if the stored 3 directions can be simplified
+                            }
+
+                            // Afterwards change the direction to straight
+                            direction = Direction::STRAIGHT;
+
+                            
+                            // // Code to move the robot right
+                            // Eigen::Vector2f robot_coord = {maximum_velocity/(1+(1000*fabsf(angle))),  // forward velocity changes with the error value
+                            // (Kp * angle + Kp_nl * angle * fabsf(angle))                 }; // simple proportional angle controller
+
+                            // // map robot velocities to wheel velocities in rad/sec
+                            // Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord;
+
+                            // // setpoints for the dc motors in rps
+                            // motor_M1.setVelocity((wheel_speed(0) / (2.0f * M_PIf))); // set a desired speed for speed controlled dc motors M1
+                            // motor_M2.setVelocity((wheel_speed(1) / (2.0f * M_PIf))); // set a desired speed for speed controlled dc motors M2
+                            
+                            // // delay((int)(turn_duration * 1000));  // convert to ms
+
+                            // // Check if the robot has turned left and is at its center
+                            // if (centerMean){
+                            //     direction = Direction::STRAIGHT;
+                            // }
                             
                             break;
                         }
@@ -315,20 +390,10 @@ int main()
                             node_type = NodeType::DEAD_END;
                             printf("niko kwa deadend \n"); 
 
-                            Eigen::Vector2f robot_coord = {maximum_velocity/(1+(4*fabsf(angle))),  // forward velocity changes with the error value
-                            Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
+                            // Code to run if we meet a deadend
 
-                            // map robot velocities to wheel velocities in rad/sec
-                            Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord;
-
-                            // setpoints for the dc motors in rps
-                            motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
-                            motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-                            
-                            // Check if the robot has turned left and is at its center
-                            if (centerMean){
-                                direction = Direction::STRAIGHT;
-                            }
+                            // Aftewards move in the straight direction
+                            direction = Direction::STRAIGHT;
 
                             break;
                         }
@@ -337,42 +402,12 @@ int main()
                         }
                     }
 
-
-                //     // Detecting a dead end
-                //     else if (isIntersection == 0){
-                //         node_type = NodeType::DEAD_END;
-                //         printf("niko kwa deadend \n"); 
-
-                //         Eigen::Vector2f robot_coord = {maximum_velocity/(1+(4*fabsf(angle))),  // forward velocity changes with the error value
-                //         Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
-
-                //         // map robot velocities to wheel velocities in rad/sec
-                //         Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord;
-
-                //         // setpoints for the dc motors in rps
-                //         motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
-                //         motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-                //     }
-
-                //     // Detecting a normal node
-                // else {
-                //         node_type = NodeType::NORMAL; 
-                //         Eigen::Vector2f robot_coord = {maximum_velocity/(1+(4*fabsf(angle))),  // forward velocity changes with the error value
-                //                         Kp * angle + Kp_nl * angle * fabsf(angle)                 }; // simple proportional angle controller
-
-                //         // map robot velocities to wheel velocities in rad/sec
-                //         Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord;
-
-                //         // setpoints for the dc motors in rps
-                //         motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
-                //         motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-                //     }
-
                     break;
                 }
                 
                 default: {
 
+                    // The robot will be in stop mode
                     motor_M1.setVelocity(0);
                     motor_M2.setVelocity(0);
                     break; // do nothing
@@ -399,13 +434,6 @@ int main()
         user_led = !user_led;
 
         // --- code that runs every cycle at the end goes here ---
-
-        // print to the serial terminal
-        // printf("%6.2f, %6.2f \n", roll_servo_width, pitch_servo_width);
-        // printf("%6.2f, %6.2f ", imu_data.rpy(0) * 180.0f / M_PIf, imu_data.rpy(1) * 180.0f / M_PIf);
-        // printf("%6.2f, %6.2f \n", roll_estimate * 180.0f / M_PIf, pitch_estimate * 180.0f / M_PIf);
-        // printf("%6.2f, %6.2f ", imu_data.pry(1) * 180.0f / M_PIf, imu_data.pry(0) * 180.0f / M_PIf);
-        // printf("%6.2f, %6.2f \n", roll_estimate * 180.0f / M_PIf, pitch_estimate * 180.0f / M_PIf);
 
         // read timer and make the main thread sleep for the remaining time span (non blocking)
         int main_task_elapsed_time_ms = duration_cast<milliseconds>(main_task_timer.elapsed_time()).count();
