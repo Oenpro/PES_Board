@@ -117,7 +117,7 @@ int main()
     const float Kp = 1.2f * 2.0f;
     const float Kp_nl = 1.2f * 17.0f;
     // const float wheel_vel_max = 2.0f * M_PIf * motor_M2.getMaxPhysicalVelocity();
-    const float wheel_vel_max = 2.0f * M_PIf * motor_M2.getMaxPhysicalVelocity()* 0.2f;
+    const float wheel_vel_max = 2.0f * M_PIf * motor_M2.getMaxPhysicalVelocity()* 0.1f;
     const float maximum_velocity = wheel_vel_max*r1_wheel; // maximum velocity
 
     // // set up states for state machine
@@ -245,7 +245,7 @@ int main()
 
                     switch(direction){
                         case Direction::STRAIGHT: {
-                            printf("I am going straight \n"); 
+                            // printf("I am going straight \n"); 
                             //**********Record the node details ***************/
                             
                             // Code to move the robot straight
@@ -264,6 +264,7 @@ int main()
                                 direction = Direction::LEFT;
                             }
                             if ((sensor_bar.getRaw() & 0b00000111) == 0b00000111){
+                                
                                 direction = Direction::RIGHT;                                
                             }
                             // if (crossRoad == 1){
@@ -304,9 +305,11 @@ int main()
                             // }
 
                             // Detecting a deadend. Centermean transitions from 1 to 0.
-                            if ((sensor_bar.getRaw() & 0b00000000) == 0b00000000){
-                                printf("niko kwa deadend \n"); 
-                                // direction = Direction::U_TURN;
+                            // printf("Center mean: %f \n", centerMean);
+                            if ((centerMean <= 0.0f)){
+
+                                // printf("niko kwa deadend \n"); 
+                                direction = Direction::U_TURN;
                             }
 
                             break;
@@ -408,14 +411,19 @@ int main()
                             // motor_M2.setRotation(2.0f);
                             
                             // move foward for some time 
-                            move_foward_time_counter++;
+                            // move_foward_time_counter++;
+                            // thread_sleep_for(5000);
+                            motor_M1.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                            motor_M2.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                            wait_us(1000000);
+                            
 
-                            if (move_foward_time_counter > 10){
+                            // if (move_foward_time_counter > 30){
                                 // Check the sensor reading again if you have a reading at the center or no reading.
                             centerMean = sensor_bar.getMeanFourAvgBitsCenter();
 
                             // If no reading, turn right by 90 degrees
-                            if (centerMean == 0.0f){
+                            if (centerMean <= 0.0f){
                             //  Code to turn the robot to the right  
                             Eigen::Vector2f robot_coord;
                             robot_coord << 0.1f, -2.5f;
@@ -479,7 +487,7 @@ int main()
                             // Afterwards change the direction to straight
                             direction = Direction::STRAIGHT;
                             move_foward_time_counter = 0;
-                            }
+                            // }
 
                             break;
                         }
@@ -491,73 +499,73 @@ int main()
                             // move foward for some time 
                             move_foward_time_counter++;
 
-                            // if (move_foward_time_counter > 10){
+                            if (move_foward_time_counter > 10){
                                 
-                            // if ((sensor_bar.getRaw() & 0b00000000) == 0b00000000){
+                            if (centerMean <= 0.0f){
 
-                            //     while (!((sensor_bar.getRaw() & 0b00011000) == 0b00011000)){
-                            //         Eigen::Vector2f robot_coord;
-                            //         robot_coord << 0.0f, 3.0f;
-                            //         Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
-                            //         motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
-                            //         motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-                            //     }
-                            //     // motor_M1.setRotation(2.0f);
-                            //     // motor_M2.setRotation(-2.0f);
+                                while (!((sensor_bar.getRaw() & 0b00011000) == 0b00011000)){
+                                    Eigen::Vector2f robot_coord;
+                                    robot_coord << 0.0f, 3.0f;
+                                    Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
+                                    motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                                    motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                                }
+                                // motor_M1.setRotation(2.0f);
+                                // motor_M2.setRotation(-2.0f);
 
-                            //     //  store the direction taken &  simplify
-                            //     // Record the turn direction taken
-                            //     maze_ram[store_counter] = 'B'; 
-                            //     store_counter++;
+                                //  store the direction taken &  simplify
+                                // Record the turn direction taken
+                                maze_ram[store_counter] = 'B'; 
+                                store_counter++;
 
-                            //     // Check if the stored 3 directions can be simplified
-                            //     if (store_counter == 2){
-                            //         // Simplify the turns
-                            //         if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'R' ){
+                                // Check if the stored 3 directions can be simplified
+                                if (store_counter == 2){
+                                    // Simplify the turns
+                                    if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'R' ){
 
-                            //             maze_memory[memory_counter] = 'B';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'B';
+                                        memory_counter++;
 
-                            //         }
-                            //         if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'S' ){
+                                    }
+                                    if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'S' ){
 
-                            //             maze_memory[memory_counter] = 'R';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'R';
+                                        memory_counter++;
 
-                            //         }
-                            //         if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
+                                    }
+                                    if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
 
-                            //             maze_memory[memory_counter] = 'S';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'S';
+                                        memory_counter++;
 
-                            //         }
-                            //         if(maze_ram[0] == 'S' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
+                                    }
+                                    if(maze_ram[0] == 'S' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
 
-                            //             maze_memory[memory_counter] = 'R';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'R';
+                                        memory_counter++;
 
-                            //         }
-                            //         if(maze_ram[0] == 'S' && maze_ram[1] == 'B' && maze_ram[2] == 'S' ){
+                                    }
+                                    if(maze_ram[0] == 'S' && maze_ram[1] == 'B' && maze_ram[2] == 'S' ){
 
-                            //             maze_memory[memory_counter] = 'B';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'B';
+                                        memory_counter++;
 
-                            //         }
-                            //         if(maze_ram[0] == 'R' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
+                                    }
+                                    if(maze_ram[0] == 'R' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
 
-                            //             maze_memory[memory_counter] = 'B';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'B';
+                                        memory_counter++;
 
-                            //         }
-                            //         store_counter = 0;
-                            //     }
-                            // }
+                                    }
+                                    store_counter = 0;
+                                }
+                            }
 
-                            // // Aftewards move in the straight direction
-                            // direction = Direction::STRAIGHT;
-                            // move_foward_time_counter = 0;
+                            // Aftewards move in the straight direction
+                            direction = Direction::STRAIGHT;
+                            move_foward_time_counter = 0;
 
-                            // }
+                            }
 
                             break;
                         }
