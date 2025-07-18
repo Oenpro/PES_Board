@@ -19,7 +19,7 @@
 
 #define M_PIf 3.14159265358979323846f // pi
 
-float tanh_controller(float e);
+float tanh_controller(float e); // Function definition for the tanh() controller.
 
 bool do_execute_main_task = false; // this variable will be toggled via the user button (blue button) and
                                    // decides whether to execute the main task or not
@@ -91,6 +91,7 @@ int main()
     DCMotor motor_M1(PB_PWM_M1, PB_ENC_A_M1, PB_ENC_B_M1, gear_ratio, kn, voltage_max);
     DCMotor motor_M2(PB_PWM_M2, PB_ENC_A_M2, PB_ENC_B_M2, gear_ratio, kn, voltage_max);
 
+
     // differential drive robot kinematics
     const float d_wheel = 0.0673f; // wheel diameter in meters
     const float b_wheel = 0.147f;  // wheelbase, distance from wheel to wheel in meters
@@ -117,17 +118,10 @@ int main()
     const float Kp = 1.2f * 2.0f;
     const float Kp_nl = 1.2f * 17.0f;
     // const float wheel_vel_max = 2.0f * M_PIf * motor_M2.getMaxPhysicalVelocity();
-    const float wheel_vel_max = 2.0f * M_PIf * motor_M2.getMaxPhysicalVelocity()* 0.2f;
+    const float wheel_vel_max = 2.0f * M_PIf * motor_M2.getMaxPhysicalVelocity()* 0.1f;
     const float maximum_velocity = wheel_vel_max*r1_wheel; // maximum velocity
 
-    // // set up states for state machine
-    // enum NodeType
-    // {
-    //     NORMAL,
-    //     DEAD_END,
-    //     GOAL
-    // } node_type = NodeType::NORMAL;
-
+    // set up states for direction
     enum Direction
     {
         LEFT,
@@ -140,42 +134,21 @@ int main()
     enum RobotState {
         INITIAL,
         STOP,
-        // FORWARD,
         LEARNING,
         EXECUTE
     } robot_state = RobotState::INITIAL;
-
-    robot_state = RobotState::INITIAL;
-
-    struct Node {
-    int id;
-    bool visited = false;
-    bool leftTried = false;
-    bool rightTried = false;
-    bool straightTried = false;
-    };
-
-    std::vector<Node> pathStack;
-
-    // int nodeCounter = 0;
-    // int end_counter = 0;
-    // Node currentNode;
-
-    // Node currentNode;
-    // currentNode.id = nodeCounter++;
-
-    // Push to the stack
-    // pathStack.push_back(currentNode);
 
     // navigation variables
     bool leftTurn = false, rightTurn = false, crossRoad = false, isIntersection = false, deadEnd = false;
 
     // 
-    char maze_ram[3];
-    char maze_memory[50];
+    char maze_ram[3] = {};
+    char maze_memory[50] = {};
     int store_counter = 0;
     int memory_counter = 0;
     int move_foward_time_counter = 0;
+    int full_black_counter = 0;
+    const int full_black_threshold = 6;  // Require multiple readings before stopping
 
 
     // start timer
@@ -194,17 +167,12 @@ int main()
             // only update sensor bar angle if an led is triggered
             if (sensor_bar.isAnyLedActive())
                 angle = sensor_bar.getAvgAngleRad();
-            // printf("angle: %f \n ", angle);
 
             // Intersection and end detection
             leftMean = sensor_bar.getMeanThreeAvgBitsLeft();
             centerMean = sensor_bar.getMeanFourAvgBitsCenter();
             rightMean = sensor_bar.getMeanThreeAvgBitsRight();
 
-            // printf("Left Mean: %f\n", leftMean);
-            // printf("Right Mean: %d\n", rightMean);
-            // printf("Center Mean: %d\n", centerMean);
-            // printf("Intersection: %d\n", isIntersection);
 
             // Detect if more than one sensor is on black
             leftTurn = (leftMean > 0.5f && centerMean > 0.3f && rightMean <= 0.5f);
@@ -214,28 +182,22 @@ int main()
             isIntersection = (leftTurn || rightTurn || crossRoad);
             
 
-            // printf("Left Turn: %d\n", leftTurn);
-            // printf("Right Turn: %d\n", rightTurn);
-            // printf("Cross Road: %d\n", crossRoad);
-            // printf("Intersection: %d\n", isIntersection);
-
-           
-            // NodeType type = 
-
              switch (robot_state) {
                 case RobotState::INITIAL: {
                     // enable hardwaredriver dc motors: 0 -> disabled, 1 -> enabled
                     enable_motors = 1;
-                    // robot_state = RobotState::FORWARD;
                     robot_state = RobotState::LEARNING;
 
                     break;
                 }
-                // case RobotState::STOP: {
-                //     motor_M1.setVelocity(0);
-                //     motor_M2.setVelocity(0);
-                //     break;
-                // }
+                case RobotState::STOP: {
+
+                    // Stop the motors
+                    motor_M1.setVelocity(0);
+                    motor_M2.setVelocity(0);
+                    enable_motors = 0;  // Disable the motors
+                    break;
+                }
                 case RobotState::EXECUTE: {
 
                     // Code to run after the maze has been learned by the robot
@@ -245,7 +207,6 @@ int main()
 
                     switch(direction){
                         case Direction::STRAIGHT: {
-                            printf("I am going straight \n"); 
                             //**********Record the node details ***************/
                             
                             // Code to move the robot straight
@@ -264,49 +225,113 @@ int main()
                                 direction = Direction::LEFT;
                             }
                             if ((sensor_bar.getRaw() & 0b00000111) == 0b00000111){
+                                
                                 direction = Direction::RIGHT;                                
                             }
-                            // if (crossRoad == 1){
-                            //     // move foward by 1 inch
+                            if ((sensor_bar.getRaw()) == 0b11111111){
+                                // move foward for 1 second
+                                motor_M1.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                                motor_M2.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                                wait_us(1000000);
 
-                            //     // Check the sensor reading again if you have a reading at the center or still a crossroad reading.
-                            //     leftMean = sensor_bar.getMeanThreeAvgBitsLeft();
-                            //     centerMean = sensor_bar.getMeanFourAvgBitsCenter();
-                            //     rightMean = sensor_bar.getMeanThreeAvgBitsRight();
-                            //     crossRoad = (leftMean > 0.5f && centerMean > 0.5f && rightMean > 0.5f);
+                                // Check the sensor reading again if you have a reading at the center or still a crossroad reading.
+                                leftMean = sensor_bar.getMeanThreeAvgBitsLeft();
+                                centerMean = sensor_bar.getMeanFourAvgBitsCenter();
+                                rightMean = sensor_bar.getMeanThreeAvgBitsRight();
+                                crossRoad = (leftMean > 0.5f && centerMean > 0.5f && rightMean > 0.5f);
 
-                            //     // If the crossroad is still reading positive then we are at the end.
-                            //     if (crossRoad){
-                            //         // node_type = NodeType::GOAL; 
-                            //         printf("niko kwa goal \n");
-                            //         robot_state = RobotState::STOP;
-                            //         motor_M1.setVelocity(0);
-                            //         motor_M2.setVelocity(0);
-                            //     }
-                            //     // if we only have center mean, then we have a straight route to explore i.e @ '+' junction
-                            //     if (!crossRoad && centerMean){
-                            //         // Prioritize turning to the left first, then straight, then right
-                            //     }
-                            //     // If we dont have a reading, we are at a T junction.
-                            //     else {
-                            //         // Prioritize turning left
-                            //     }
+                                printf("leftMean: %f\n", leftMean);
+                                printf("centerMean: %f\n", centerMean);
+                                printf("rightMean: %f\n", rightMean);
 
-                            //     // end_counter++;
+                                // If the crossroad is still reading positive then we are at the end.
+                                if (crossRoad){
+                                    printf("niko kwa goal \n");
+                                    printf("maze_memory %s\n", maze_memory);
+                                    robot_state = RobotState::STOP;
+                                    motor_M1.setVelocity(0);
+                                    motor_M2.setVelocity(0);
+                                    enable_motors = 0;
+                                }
 
-                            //     // if (end_counter > 6){
-                            //     //     node_type = NodeType::GOAL; 
-                            //     //     printf("niko kwa goal \n");
-                            //     //     robot_state = RobotState::STOP;
-                            //     //     motor_M1.setVelocity(0);
-                            //     //     motor_M2.setVelocity(0);
-                            //     // }
-                            // }
+                               
+                                // if we only have center mean, then we have a straight route to explore i.e @ '+' junction
+                                if (!crossRoad && centerMean){
+                                    // Prioritize turning to the left first, then straight, then right
+                                }
+                                // If we dont have a reading, we are at a T junction.
+                                if (!(crossRoad && centerMean) && (leftMean > 0.0f)) {
+                                    // move foward for 1 second
+                                    motor_M1.setVelocity(-0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                                    motor_M2.setVelocity(-0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                                    wait_us(1000000);
+                                    
+                                    // Prioritize turning left
+                                     Eigen::Vector2f robot_coord;
+                                    robot_coord << 0.1f, 2.5f;
+                                    Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
+                                    motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                                    motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                                    wait_us(375000);
+
+                                    // Record that we have turned left
+                                    maze_ram[store_counter] = 'L'; 
+                                    store_counter++;
+
+                                    // Check if the stored 3 directions can be simplified
+                                    if (store_counter == 2){
+                                        // Simplify the turns
+                                        if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'R' ){
+
+                                            maze_memory[memory_counter] = 'B';
+                                            memory_counter++;
+
+                                        }
+                                        if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'S' ){
+
+                                            maze_memory[memory_counter] = 'R';
+                                            memory_counter++;
+
+                                        }
+                                        if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
+
+                                            maze_memory[memory_counter] = 'S';
+                                            memory_counter++;
+
+                                        }
+                                        if(maze_ram[0] == 'S' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
+
+                                            maze_memory[memory_counter] = 'R';
+                                            memory_counter++;
+
+                                        }
+                                        if(maze_ram[0] == 'S' && maze_ram[1] == 'B' && maze_ram[2] == 'S' ){
+
+                                            maze_memory[memory_counter] = 'B';
+                                            memory_counter++;
+
+                                        }
+                                        if(maze_ram[0] == 'R' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
+
+                                            maze_memory[memory_counter] = 'B';
+                                            memory_counter++;
+
+                                        }
+                                        store_counter = 0;
+                                    }
+                                    
+
+                                    // Afterwards, change the direction to straight
+                                    direction = Direction::STRAIGHT;
+                                }
+
+                            }
 
                             // Detecting a deadend. Centermean transitions from 1 to 0.
-                            if ((sensor_bar.getRaw() & 0b00000000) == 0b00000000){
-                                printf("niko kwa deadend \n"); 
-                                // direction = Direction::U_TURN;
+                            if ((centerMean <= 0.0f)){
+
+                                // printf("niko kwa deadend \n"); 
+                                direction = Direction::U_TURN;
                             }
 
                             break;
@@ -315,36 +340,36 @@ int main()
                             printf("Naenda Left \n"); 
                             //**********Record the node details ***************/
 
-                            // // move foward by half a rotation
-                            // motor_M1.setRotation(0.1f);
-                            // motor_M2.setRotation(0.1f);
-                            
-                                                        // move foward for some time 
-                            move_foward_time_counter++;
+                            // // move foward abit
+                            motor_M1.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                            motor_M2.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                            wait_us(1000000);
 
-                            if (move_foward_time_counter > 10){
-                                // Check the sensor reading again if you have a reading at the center or no reading.
+                            // Check the sensor reading again if you have a reading at the center or no reading.
                             centerMean = sensor_bar.getMeanFourAvgBitsCenter();
 
                             // If no reading, turn left by 90 degrees
-                            if (centerMean == 0.0f){
-                            //  Code to turn the robot to the left 
-                            // Eigen::Vector2f robot_coord  = {0.1f, 2.5f }; 
+                            if (centerMean <= 0.0f){
+                            //  Code to turn the robot to the left  
                             Eigen::Vector2f robot_coord;
                             robot_coord << 0.1f, 2.5f;
                             Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
                             motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                             motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-
+                            wait_us(1000000);
                             }
                             // If there is a reading then you can either turn left or go straight
                             else {
                             // Left hand wall follower. Will prioritize turning left over the straight direction
+                            // while (!((sensor_bar.getRaw() & 0b00011000) == 0b00011000)){
+
+                            // }
                             Eigen::Vector2f robot_coord;
                             robot_coord << 0.1f, 2.5f;
                             Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
                             motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                             motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                            wait_us(1000000);
                             // Record the turn direction taken
                             maze_ram[store_counter] = 'L'; 
                             store_counter++;
@@ -395,34 +420,32 @@ int main()
                             // Afterwards, change the direction to straight
                             direction = Direction::STRAIGHT;
                             move_foward_time_counter = 0;
-                            }
+                            printf("maze_ram %s\n", maze_ram);
+                            // }
 
                             break;
                         }
                         case Direction::RIGHT: {
                             printf("Naenda Right \n"); 
                             //**********Record the node details ***************/
+                                                        
+                            // move foward for some time
+                            motor_M1.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                            motor_M2.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                            wait_us(1000000);
                             
-                            // // move foward by half a rotation
-                            // motor_M1.setRotation(2.0f);
-                            // motor_M2.setRotation(2.0f);
-                            
-                            // move foward for some time 
-                            move_foward_time_counter++;
-
-                            if (move_foward_time_counter > 10){
-                                // Check the sensor reading again if you have a reading at the center or no reading.
+                            // Check the sensor reading again if you have a reading at the center or no reading.
                             centerMean = sensor_bar.getMeanFourAvgBitsCenter();
 
                             // If no reading, turn right by 90 degrees
-                            if (centerMean == 0.0f){
+                            if (centerMean <= 0.0f){
                             //  Code to turn the robot to the right  
                             Eigen::Vector2f robot_coord;
                             robot_coord << 0.1f, -2.5f;
                             Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
                             motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                             motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-
+                            wait_us(1000000);
                             }
                             // If there is a reading then you can either turn right or go straight
                             else {
@@ -476,93 +499,95 @@ int main()
                             }
                             }
 
+                            motor_M1.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                            motor_M2.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                            wait_us(1000000);
+
                             // Afterwards change the direction to straight
                             direction = Direction::STRAIGHT;
+                            
+
                             move_foward_time_counter = 0;
-                            }
+                            printf("maze_ram %s\n", maze_ram);
 
                             break;
                         }
                         case Direction::U_TURN: {
-                            // node_type = NodeType::DEAD_END;
-                            printf("niko kwa deadend \n"); 
 
                             // Code to run if we meet a deadend
                             // move foward for some time 
                             move_foward_time_counter++;
 
-                            // if (move_foward_time_counter > 10){
+                            if (move_foward_time_counter > 10){
                                 
-                            // if ((sensor_bar.getRaw() & 0b00000000) == 0b00000000){
+                            if (centerMean <= 0.0f){
 
-                            //     while (!((sensor_bar.getRaw() & 0b00011000) == 0b00011000)){
-                            //         Eigen::Vector2f robot_coord;
-                            //         robot_coord << 0.0f, 3.0f;
-                            //         Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
-                            //         motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
-                            //         motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-                            //     }
-                            //     // motor_M1.setRotation(2.0f);
-                            //     // motor_M2.setRotation(-2.0f);
+                                while (!((sensor_bar.getRaw() & 0b00011000) == 0b00011000)){
+                                    Eigen::Vector2f robot_coord;
+                                    robot_coord << 0.0f, 3.0f;
+                                    Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
+                                    motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                                    motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                                }
 
-                            //     //  store the direction taken &  simplify
-                            //     // Record the turn direction taken
-                            //     maze_ram[store_counter] = 'B'; 
-                            //     store_counter++;
+                                //  store the direction taken &  simplify
+                                // Record the turn direction taken
+                                maze_ram[store_counter] = 'B'; 
+                                store_counter++;
 
-                            //     // Check if the stored 3 directions can be simplified
-                            //     if (store_counter == 2){
-                            //         // Simplify the turns
-                            //         if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'R' ){
+                                // Check if the stored 3 directions can be simplified
+                                if (store_counter == 2){
+                                    // Simplify the turns
+                                    if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'R' ){
 
-                            //             maze_memory[memory_counter] = 'B';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'B';
+                                        memory_counter++;
 
-                            //         }
-                            //         if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'S' ){
+                                    }
+                                    if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'S' ){
 
-                            //             maze_memory[memory_counter] = 'R';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'R';
+                                        memory_counter++;
 
-                            //         }
-                            //         if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
+                                    }
+                                    if(maze_ram[0] == 'L' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
 
-                            //             maze_memory[memory_counter] = 'S';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'S';
+                                        memory_counter++;
 
-                            //         }
-                            //         if(maze_ram[0] == 'S' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
+                                    }
+                                    if(maze_ram[0] == 'S' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
 
-                            //             maze_memory[memory_counter] = 'R';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'R';
+                                        memory_counter++;
 
-                            //         }
-                            //         if(maze_ram[0] == 'S' && maze_ram[1] == 'B' && maze_ram[2] == 'S' ){
+                                    }
+                                    if(maze_ram[0] == 'S' && maze_ram[1] == 'B' && maze_ram[2] == 'S' ){
 
-                            //             maze_memory[memory_counter] = 'B';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'B';
+                                        memory_counter++;
 
-                            //         }
-                            //         if(maze_ram[0] == 'R' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
+                                    }
+                                    if(maze_ram[0] == 'R' && maze_ram[1] == 'B' && maze_ram[2] == 'L' ){
 
-                            //             maze_memory[memory_counter] = 'B';
-                            //             memory_counter++;
+                                        maze_memory[memory_counter] = 'B';
+                                        memory_counter++;
 
-                            //         }
-                            //         store_counter = 0;
-                            //     }
-                            // }
+                                    }
+                                    store_counter = 0;
+                                }
+                            }
 
-                            // // Aftewards move in the straight direction
-                            // direction = Direction::STRAIGHT;
-                            // move_foward_time_counter = 0;
+                            // Aftewards move in the straight direction
+                            direction = Direction::STRAIGHT;
+                            move_foward_time_counter = 0;
 
-                            // }
+                            }
 
                             break;
                         }
                         default: {
-                            printf("I am at default position\n");
+
                             break;
                         }
                     }
@@ -575,6 +600,7 @@ int main()
                     // The robot will be in stop mode
                     motor_M1.setVelocity(0);
                     motor_M2.setVelocity(0);
+                    enable_motors = 0;
                     break; // do nothing
                 }
             }
@@ -588,12 +614,13 @@ int main()
 
                 // reset variables and objects
                 enable_motors = 0;
-                // end_counter = 0;
                 robot_state = RobotState::INITIAL;
                 direction = Direction::STRAIGHT;
                 angle = 0;
                 store_counter = 0;
                 move_foward_time_counter = 0;
+                maze_ram[3] = {};
+                maze_memory[50] = {}; 
             }
         }
 

@@ -19,7 +19,7 @@
 
 #define M_PIf 3.14159265358979323846f // pi
 
-float tanh_controller(float e); // Function definition for the tanh() controller.
+float tanh_controller(float e);
 
 bool do_execute_main_task = false; // this variable will be toggled via the user button (blue button) and
                                    // decides whether to execute the main task or not
@@ -88,16 +88,22 @@ int main()
     const float kn = 140.0f / 12.0f;
 
     // motor M1 and M2, do NOT enable motion planner when used with the LineFollower (disabled per default)
-    DCMotor motor_M1(PB_PWM_M1, PB_ENC_A_M1, PB_ENC_B_M1, gear_ratio, kn, voltage_max);
-    DCMotor motor_M2(PB_PWM_M2, PB_ENC_A_M2, PB_ENC_B_M2, gear_ratio, kn, voltage_max);
-
+    // DCMotor motor_M1(PB_PWM_M1, PB_ENC_A_M1, PB_ENC_B_M1, gear_ratio, kn, voltage_max);
+    // DCMotor motor_M2(PB_PWM_M2, PB_ENC_A_M2, PB_ENC_B_M2, gear_ratio, kn, voltage_max);
+    DCMotor motor_M2(PB_PWM_M1, PB_ENC_A_M1, PB_ENC_B_M1, gear_ratio, kn, voltage_max);
+    DCMotor motor_M1(PB_PWM_M2, PB_ENC_A_M2, PB_ENC_B_M2, gear_ratio, kn, voltage_max);
 
     // differential drive robot kinematics
-    const float d_wheel = 0.0673f; // wheel diameter in meters
-    const float b_wheel = 0.147f;  // wheelbase, distance from wheel to wheel in meters
-    const float bar_dist = 0.180f; // distance from wheel axis to leds on sensor bar / array in meters
+    const float d_wheel = 0.100f; // wheel diameter in meters
+    const float b_wheel = 0.172f;  // wheelbase, distance from wheel to wheel in meters
+    const float bar_dist = 0.022f; // distance from wheel axis to leds on sensor bar / array in meters
     const float r1_wheel = d_wheel / 2.0f; // right wheel radius in meters
     const float r2_wheel = d_wheel / 2.0f; // left  wheel radius in meters
+    // const float d_wheel = 0.0673f; // wheel diameter in meters
+    // const float b_wheel = 0.147f;  // wheelbase, distance from wheel to wheel in meters
+    // const float bar_dist = 0.180f; // distance from wheel axis to leds on sensor bar / array in meters
+    // const float r1_wheel = d_wheel / 2.0f; // right wheel radius in meters
+    // const float r2_wheel = d_wheel / 2.0f; // left  wheel radius in meters
     // transforms wheel to robot velocities
     Eigen::Matrix2f Cwheel2robot;
     Cwheel2robot << r1_wheel / 2.0f   ,  r2_wheel / 2.0f   ,
@@ -121,7 +127,14 @@ int main()
     const float wheel_vel_max = 2.0f * M_PIf * motor_M2.getMaxPhysicalVelocity()* 0.1f;
     const float maximum_velocity = wheel_vel_max*r1_wheel; // maximum velocity
 
-    // set up states for direction
+    // // set up states for state machine
+    // enum NodeType
+    // {
+    //     NORMAL,
+    //     DEAD_END,
+    //     GOAL
+    // } node_type = NodeType::NORMAL;
+
     enum Direction
     {
         LEFT,
@@ -134,9 +147,32 @@ int main()
     enum RobotState {
         INITIAL,
         STOP,
+        // FORWARD,
         LEARNING,
         EXECUTE
     } robot_state = RobotState::INITIAL;
+
+    robot_state = RobotState::INITIAL;
+
+    struct Node {
+    int id;
+    bool visited = false;
+    bool leftTried = false;
+    bool rightTried = false;
+    bool straightTried = false;
+    };
+
+    std::vector<Node> pathStack;
+
+    // int nodeCounter = 0;
+    // int end_counter = 0;
+    // Node currentNode;
+
+    // Node currentNode;
+    // currentNode.id = nodeCounter++;
+
+    // Push to the stack
+    // pathStack.push_back(currentNode);
 
     // navigation variables
     bool leftTurn = false, rightTurn = false, crossRoad = false, isIntersection = false, deadEnd = false;
@@ -167,12 +203,17 @@ int main()
             // only update sensor bar angle if an led is triggered
             if (sensor_bar.isAnyLedActive())
                 angle = sensor_bar.getAvgAngleRad();
+            // printf("angle: %f \n ", angle);
 
             // Intersection and end detection
             leftMean = sensor_bar.getMeanThreeAvgBitsLeft();
             centerMean = sensor_bar.getMeanFourAvgBitsCenter();
             rightMean = sensor_bar.getMeanThreeAvgBitsRight();
 
+            // printf("Left Mean: %f\n", leftMean);
+            // printf("Right Mean: %d\n", rightMean);
+            // printf("Center Mean: %d\n", centerMean);
+            // printf("Intersection: %d\n", isIntersection);
 
             // Detect if more than one sensor is on black
             leftTurn = (leftMean > 0.5f && centerMean > 0.3f && rightMean <= 0.5f);
@@ -182,22 +223,28 @@ int main()
             isIntersection = (leftTurn || rightTurn || crossRoad);
             
 
+            // printf("Left Turn: %d\n", leftTurn);
+            // printf("Right Turn: %d\n", rightTurn);
+            // printf("Cross Road: %d\n", crossRoad);
+            // printf("Intersection: %d\n", isIntersection);
+
+           
+            // NodeType type = 
+
              switch (robot_state) {
                 case RobotState::INITIAL: {
                     // enable hardwaredriver dc motors: 0 -> disabled, 1 -> enabled
                     enable_motors = 1;
+                    // robot_state = RobotState::FORWARD;
                     robot_state = RobotState::LEARNING;
 
                     break;
                 }
-                case RobotState::STOP: {
-
-                    // Stop the motors
-                    motor_M1.setVelocity(0);
-                    motor_M2.setVelocity(0);
-                    enable_motors = 0;  // Disable the motors
-                    break;
-                }
+                // case RobotState::STOP: {
+                //     motor_M1.setVelocity(0);
+                //     motor_M2.setVelocity(0);
+                //     break;
+                // }
                 case RobotState::EXECUTE: {
 
                     // Code to run after the maze has been learned by the robot
@@ -207,6 +254,7 @@ int main()
 
                     switch(direction){
                         case Direction::STRAIGHT: {
+                            // printf("I am going straight \n"); 
                             //**********Record the node details ***************/
                             
                             // Code to move the robot straight
@@ -219,6 +267,25 @@ int main()
                             // setpoints for the dc motors in rps
                             motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                             motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+
+                            // // Detecting the end goal
+                            //  if (sensor_bar.getRaw() == 0b11111111 || (leftMean > 0.9f && centerMean > 0.9f && rightMean > 0.9f)) {
+                            //     full_black_counter++;
+                            //     if (full_black_counter > full_black_threshold) {
+                            //     // Stop robot
+                            //     motor_M1.setVelocity(0.0f);
+                            //     motor_M2.setVelocity(0.0f);
+                            //     enable_motors = 0;
+                            //     // led1 = 0;
+                            //     while (true) {
+                            //     user_led = !user_led;  // Blink to indicate stop at endpoint
+                            //     thread_sleep_for(300);
+                            //     }
+                            //     }
+                            //     } else {
+                            //     full_black_counter = 0; // Reset counter if black pattern not persistent
+                            //     }
+
 
                             // Check for the next junction type
                             if ((sensor_bar.getRaw() & 0b11100000) == 0b11100000){
@@ -246,6 +313,7 @@ int main()
 
                                 // If the crossroad is still reading positive then we are at the end.
                                 if (crossRoad){
+                                    // node_type = NodeType::GOAL; 
                                     printf("niko kwa goal \n");
                                     printf("maze_memory %s\n", maze_memory);
                                     robot_state = RobotState::STOP;
@@ -325,9 +393,19 @@ int main()
                                     direction = Direction::STRAIGHT;
                                 }
 
+                                // end_counter++;
+
+                                // if (end_counter > 6){
+                                //     node_type = NodeType::GOAL; 
+                                //     printf("niko kwa goal \n");
+                                //     robot_state = RobotState::STOP;
+                                //     motor_M1.setVelocity(0);
+                                //     motor_M2.setVelocity(0);
+                                // }
                             }
 
                             // Detecting a deadend. Centermean transitions from 1 to 0.
+                            // printf("Center mean: %f \n", centerMean);
                             if ((centerMean <= 0.0f)){
 
                                 // printf("niko kwa deadend \n"); 
@@ -340,23 +418,33 @@ int main()
                             printf("Naenda Left \n"); 
                             //**********Record the node details ***************/
 
-                            // // move foward abit
+                            // // move foward by half a rotation
+                            // motor_M1.setRotation(0.1f);
+                            // motor_M2.setRotation(0.1f);
+                            
                             motor_M1.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                             motor_M2.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
                             wait_us(1000000);
 
-                            // Check the sensor reading again if you have a reading at the center or no reading.
+                            // if (move_foward_time_counter > 10){
+                                // Check the sensor reading again if you have a reading at the center or no reading.
                             centerMean = sensor_bar.getMeanFourAvgBitsCenter();
+
+                            // Move back for 1 sec
+                            motor_M1.setVelocity(-0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                            motor_M2.setVelocity(-0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                            wait_us(1000000);
 
                             // If no reading, turn left by 90 degrees
                             if (centerMean <= 0.0f){
-                            //  Code to turn the robot to the left  
+                            //  Code to turn the robot to the left 
+                            // Eigen::Vector2f robot_coord  = {0.1f, 2.5f }; 
                             Eigen::Vector2f robot_coord;
                             robot_coord << 0.1f, 2.5f;
                             Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
                             motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                             motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-                            wait_us(1000000);
+                            wait_us(375000);
                             }
                             // If there is a reading then you can either turn left or go straight
                             else {
@@ -369,7 +457,7 @@ int main()
                             Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
                             motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                             motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-                            wait_us(1000000);
+                            wait_us(375000);
                             // Record the turn direction taken
                             maze_ram[store_counter] = 'L'; 
                             store_counter++;
@@ -428,14 +516,29 @@ int main()
                         case Direction::RIGHT: {
                             printf("Naenda Right \n"); 
                             //**********Record the node details ***************/
-                                                        
-                            // move foward for some time
+                            
+                            // // move foward by half a rotation
+                            // motor_M1.setRotation(2.0f);
+                            // motor_M2.setRotation(2.0f);
+                            
+                            // move foward for some time 
+                            // move_foward_time_counter++;
+                            // thread_sleep_for(5000);
                             motor_M1.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                             motor_M2.setVelocity(0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
                             wait_us(1000000);
                             
-                            // Check the sensor reading again if you have a reading at the center or no reading.
+
+                            // if (move_foward_time_counter > 30){
+                                // Check the sensor reading again if you have a reading at the center or no reading.
                             centerMean = sensor_bar.getMeanFourAvgBitsCenter();
+
+                            // Move the robot back for 1 second
+                            motor_M1.setVelocity(-0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
+                            motor_M2.setVelocity(-0.9 / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
+                            wait_us(1000000);
+
+                            printf("centerMean: %f \n", centerMean); 
 
                             // If no reading, turn right by 90 degrees
                             if (centerMean <= 0.0f){
@@ -445,7 +548,7 @@ int main()
                             Eigen::Vector2f wheel_speed = Cwheel2robot.inverse() * robot_coord; 
                             motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                             motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
-                            wait_us(1000000);
+                            wait_us(675000);
                             }
                             // If there is a reading then you can either turn right or go straight
                             else {
@@ -509,10 +612,13 @@ int main()
 
                             move_foward_time_counter = 0;
                             printf("maze_ram %s\n", maze_ram);
+                            // }
 
                             break;
                         }
                         case Direction::U_TURN: {
+                            // node_type = NodeType::DEAD_END;
+                            printf("niko kwa deadend \n"); 
 
                             // Code to run if we meet a deadend
                             // move foward for some time 
@@ -529,6 +635,8 @@ int main()
                                     motor_M1.setVelocity(wheel_speed(0) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M1
                                     motor_M2.setVelocity(wheel_speed(1) / (2.0f * M_PIf)); // set a desired speed for speed controlled dc motors M2
                                 }
+                                // motor_M1.setRotation(2.0f);
+                                // motor_M2.setRotation(-2.0f);
 
                                 //  store the direction taken &  simplify
                                 // Record the turn direction taken
@@ -587,7 +695,7 @@ int main()
                             break;
                         }
                         default: {
-
+                            printf("I am at default position\n");
                             break;
                         }
                     }
@@ -600,7 +708,6 @@ int main()
                     // The robot will be in stop mode
                     motor_M1.setVelocity(0);
                     motor_M2.setVelocity(0);
-                    enable_motors = 0;
                     break; // do nothing
                 }
             }
@@ -614,6 +721,7 @@ int main()
 
                 // reset variables and objects
                 enable_motors = 0;
+                // end_counter = 0;
                 robot_state = RobotState::INITIAL;
                 direction = Direction::STRAIGHT;
                 angle = 0;
